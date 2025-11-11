@@ -1,10 +1,2 @@
-﻿namespace SoutezHad
-{
-    internal class Program
-    {
-        static void Main(string[] args)
-        {
-            Console.WriteLine("Hello, World!");
-        }
-    }
-}
+﻿using var game = new SoutezHad.Game1();
+game.Run();
