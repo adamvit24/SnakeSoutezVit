@@ -44,6 +44,10 @@ namespace SoutezHad
         private float specialFruitTimer;
         private const float SPECIAL_FRUIT_CHECK_INTERVAL = 5f; // Každých 5 sekund kontrola
 
+        // Překážky
+        private List<Obstacle> obstacles;
+        private const int DEFAULT_OBSTACLE_COUNT = 10;
+
         public Game1()
         {
             graphics = new GraphicsDeviceManager(this);
@@ -57,10 +61,18 @@ namespace SoutezHad
         protected override void Initialize()
         {
             random = new Random();
+
+            // Vytvoř objekty v pořadí, které zaručí, že ničemu nebude null při spawnování
             snake = new Snake(GRID_WIDTH / 2, GRID_HEIGHT / 2, GRID_SIZE);
+
             fruits = new List<Fruit>();
+            obstacles = new List<Obstacle>();
             powerUp = null;
 
+            // Spawn překážek NEPŘEKRÝVAJÍCÍ se s hadem (ovoce zatím není), ale zabezpečíme, že pozdější ovoce nebude do nich spawnovat
+            SpawnObstacles(DEFAULT_OBSTACLE_COUNT);
+
+            // Spawn prvního ovoce (volitelně náhodný typ)
             FruitType next = (FruitType)(random.Next(0, 3));
             SpawnFruit(next);
 
@@ -94,12 +106,15 @@ namespace SoutezHad
                 validPosition = true;
 
                 // Kontrola kolize s hadem
-                foreach (Point segment in snake.Segments)
+                if (snake != null)
                 {
-                    if (segment == position)
+                    foreach (Point segment in snake.Segments)
                     {
-                        validPosition = false;
-                        break;
+                        if (segment == position)
+                        {
+                            validPosition = false;
+                            break;
+                        }
                     }
                 }
 
@@ -119,6 +134,16 @@ namespace SoutezHad
                     validPosition = false;
                 }
 
+                // Kontrola kolize s překážkami
+                foreach (var ob in obstacles)
+                {
+                    if (ob.Position == position)
+                    {
+                        validPosition = false;
+                        break;
+                    }
+                }
+
             } while (!validPosition);
 
             fruits.Add(new Fruit(position, type));
@@ -136,15 +161,20 @@ namespace SoutezHad
                 position = new Point(random.Next(GRID_WIDTH), random.Next(GRID_HEIGHT));
                 validPosition = true;
 
-                foreach (Point segment in snake.Segments)
+                // kontrola proti hadovi
+                if (snake != null)
                 {
-                    if (segment == position)
+                    foreach (Point segment in snake.Segments)
                     {
-                        validPosition = false;
-                        break;
+                        if (segment == position)
+                        {
+                            validPosition = false;
+                            break;
+                        }
                     }
                 }
 
+                // kontrola ovoce
                 foreach (Fruit fruit in fruits)
                 {
                     if (fruit.Position == position)
@@ -154,9 +184,80 @@ namespace SoutezHad
                     }
                 }
 
+                // kontrola překážek
+                foreach (var ob in obstacles)
+                {
+                    if (ob.Position == position)
+                    {
+                        validPosition = false;
+                        break;
+                    }
+                }
+
             } while (!validPosition);
 
             powerUp = new PowerUp(position);
+        }
+
+        private void SpawnObstacles(int count)
+        {
+            // Pokud ještě není snake vytvořen, nevolat tuto funkci (ale my voláme z Initialize po vytvoření snake)
+            for (int i = 0; i < count; i++)
+            {
+                Point pos;
+                bool valid;
+
+                int attempts = 0;
+                do
+                {
+                    valid = true;
+                    pos = new Point(random.Next(GRID_WIDTH), random.Next(GRID_HEIGHT));
+
+                    // Kolize s hadem
+                    if (snake != null)
+                    {
+                        foreach (var seg in snake.Segments)
+                        {
+                            if (seg == pos)
+                            {
+                                valid = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Kolize s ovocem
+                    foreach (var f in fruits)
+                    {
+                        if (f.Position == pos)
+                        {
+                            valid = false;
+                            break;
+                        }
+                    }
+
+                    // Kolize s jinými překážkami
+                    foreach (var o in obstacles)
+                    {
+                        if (o.Position == pos)
+                        {
+                            valid = false;
+                            break;
+                        }
+                    }
+
+                    attempts++;
+                    // Bezpečnostní výstup pokud by bylo málo volných polí
+                    if (attempts > 2000)
+                    {
+                        valid = true;
+                        break;
+                    }
+
+                } while (!valid);
+
+                obstacles.Add(new Obstacle(pos));
+            }
         }
 
         protected override void Update(GameTime gameTime)
@@ -177,15 +278,18 @@ namespace SoutezHad
                 return;
             }
 
-            // Ovládání WASD
-            if (keyState.IsKeyDown(Keys.W) && previousKeyState.IsKeyUp(Keys.W))
-                snake.SetDirection(new Point(0, -1));
-            else if (keyState.IsKeyDown(Keys.S) && previousKeyState.IsKeyUp(Keys.S))
-                snake.SetDirection(new Point(0, 1));
-            else if (keyState.IsKeyDown(Keys.A) && previousKeyState.IsKeyUp(Keys.A))
-                snake.SetDirection(new Point(-1, 0));
-            else if (keyState.IsKeyDown(Keys.D) && previousKeyState.IsKeyUp(Keys.D))
-                snake.SetDirection(new Point(1, 0));
+            // Ovládání WASD (jen pokud snake není null)
+            if (snake != null)
+            {
+                if (keyState.IsKeyDown(Keys.W) && previousKeyState.IsKeyUp(Keys.W))
+                    snake.SetDirection(new Point(0, -1));
+                else if (keyState.IsKeyDown(Keys.S) && previousKeyState.IsKeyUp(Keys.S))
+                    snake.SetDirection(new Point(0, 1));
+                else if (keyState.IsKeyDown(Keys.A) && previousKeyState.IsKeyUp(Keys.A))
+                    snake.SetDirection(new Point(-1, 0));
+                else if (keyState.IsKeyDown(Keys.D) && previousKeyState.IsKeyUp(Keys.D))
+                    snake.SetDirection(new Point(1, 0));
+            }
 
             previousKeyState = keyState;
 
@@ -226,13 +330,13 @@ namespace SoutezHad
             {
                 specialFruitTimer = 0;
 
-                // Šance na spawn 
+                // Šance na spawn Kiwi nebo Melon
                 double rand = random.NextDouble();
-                if (rand < 0.60) // 15% šance
+                if (rand < 0.15) // 15% šance na Kiwi
                 {
                     SpawnFruit(FruitType.Kiwi);
                 }
-                else if (rand < 0.79) // 30% šance 
+                else if (rand < 0.30) // 15% šance na Melon
                 {
                     SpawnFruit(FruitType.Melon);
                 }
@@ -243,47 +347,63 @@ namespace SoutezHad
             if (moveTimer >= MOVE_DELAY)
             {
                 moveTimer = 0;
-                snake.Update();
 
-                if (snake.CheckWallCollision(GRID_WIDTH, GRID_HEIGHT))
+                if (snake != null)
                 {
-                    gameOver = true;
-                }
+                    snake.Update();
 
-                if (snake.CheckSelfCollision())
-                {
-                    gameOver = true;
-                }
-
-                // Kontrola sežrání ovoce
-                for (int i = fruits.Count - 1; i >= 0; i--)
-                {
-                    if (snake.Head == fruits[i].Position)
+                    // kolize se zdí
+                    if (snake.CheckWallCollision(GRID_WIDTH, GRID_HEIGHT))
                     {
-                        snake.Grow();
-                        score += fruits[i].Score;
-                        fruits.RemoveAt(i);
+                        gameOver = true;
+                    }
 
-                        // Spawn nového ovoce podle aktivního power-upu
-                        int fruitsToSpawn = doubleFruitActive ? 2 : 1;
-                        for (int j = 0; j < fruitsToSpawn; j++)
+                    // kolize sám se sebou
+                    if (snake.CheckSelfCollision())
+                    {
+                        gameOver = true;
+                    }
+
+                    // kolize s překážkou
+                    foreach (var ob in obstacles)
+                    {
+                        if (snake.Head == ob.Position)
+                        {
+                            gameOver = true;
+                            break;
+                        }
+                    }
+
+                    // Kontrola sežrání ovoce
+                    for (int i = fruits.Count - 1; i >= 0; i--)
+                    {
+                        if (snake.Head == fruits[i].Position)
+                        {
+                            snake.Grow();
+                            score += fruits[i].Score;
+                            fruits.RemoveAt(i);
+
+                            // Spawn nového ovoce podle aktivního power-upu
+                            int fruitsToSpawn = doubleFruitActive ? 2 : 1;
+                            for (int j = 0; j < fruitsToSpawn; j++)
+                            {
+                                SpawnFruit(FruitType.Apple);
+                            }
+                        }
+                    }
+
+                    // Kontrola sežrání power-upu
+                    if (powerUp != null && powerUp.IsActive && snake.Head == powerUp.Position)
+                    {
+                        powerUp.IsActive = false;
+                        doubleFruitActive = true;
+                        doubleFruitTimer = DOUBLE_FRUIT_DURATION;
+
+                        // Přidej druhé ovoce okamžitě
+                        if (fruits.Count <= 1)
                         {
                             SpawnFruit(FruitType.Apple);
                         }
-                    }
-                }
-
-                // Kontrola sežrání power-upu
-                if (powerUp != null && powerUp.IsActive && snake.Head == powerUp.Position)
-                {
-                    powerUp.IsActive = false;
-                    doubleFruitActive = true;
-                    doubleFruitTimer = DOUBLE_FRUIT_DURATION;
-
-                    // Přidej druhé ovoce okamžitě
-                    if (fruits.Count == 1)
-                    {
-                        SpawnFruit(FruitType.Apple);
                     }
                 }
             }
@@ -300,6 +420,12 @@ namespace SoutezHad
             // Mřížka na pozadí
             DrawGrid();
 
+            // Kreslení překážek (před ovocem a hadem)
+            foreach (var ob in obstacles)
+            {
+                ob.Draw(spriteBatch, pixel, GRID_SIZE);
+            }
+
             if (!gameOver)
             {
                 // Kreslení ovoce
@@ -314,12 +440,15 @@ namespace SoutezHad
                     powerUp.Draw(spriteBatch, pixel, GRID_SIZE);
                 }
 
-                // Kreslení hada
-                snake.Draw(spriteBatch, pixel, Color.LimeGreen);
+                // Kreslení hada (pouze, pokud existuje)
+                if (snake != null)
+                {
+                    snake.Draw(spriteBatch, pixel, Color.LimeGreen);
+                }
 
                 // Skóre
                 DrawText($"SKORE: {score}", 10, 10, Color.White, 2);
-                DrawText($"DELKA: {snake.Segments.Count}", 10, 35, Color.LightGray, 2);
+                DrawText($"DELKA: {(snake != null ? snake.Segments.Count : 0)}", 10, 35, Color.LightGray, 2);
 
                 // Indikátor power-upu
                 if (doubleFruitActive)
@@ -340,7 +469,7 @@ namespace SoutezHad
 
                 DrawTextCentered("GAME OVER", centerX, centerY - 60, Color.Red, 4);
                 DrawTextCentered($"FINALNI SKORE: {score}", centerX, centerY - 10, Color.White, 3);
-                DrawTextCentered($"DELKA HADA: {snake.Segments.Count}", centerX, centerY + 25, Color.LightGray, 2);
+                DrawTextCentered($"DELKA HADA: {(snake != null ? snake.Segments.Count : 0)}", centerX, centerY + 25, Color.LightGray, 2);
                 DrawTextCentered("STISKNI MEZERNK PRO RESTART", centerX, centerY + 70, Color.Yellow, 2);
             }
 
