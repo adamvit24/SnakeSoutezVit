@@ -4,7 +4,7 @@ using System;
 
 namespace SoutezHad
 {
-    public class PowerUp
+    public class PowerUp : IRenderable
     {
         public Point Position { get; set; }
         public bool IsActive { get; set; }

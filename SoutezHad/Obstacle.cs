@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace SoutezHad
 {
-    public class Obstacle
+    public class Obstacle : IRenderable
     {
         public Point Position { get; private set; }
         public Color Color { get; private set; } = new Color(90, 90, 90); // šedá překážka

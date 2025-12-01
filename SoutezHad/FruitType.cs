@@ -11,7 +11,7 @@ namespace SoutezHad
         Kiwi        // 20 bodů
     }
 
-    public class Fruit
+    public class Fruit : IRenderable
     {
         public Point Position { get; set; }
         public FruitType Type { get; private set; }
