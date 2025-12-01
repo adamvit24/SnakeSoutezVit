@@ -51,7 +51,7 @@ namespace SoutezHad
 
         // Překážky
         private List<Obstacle> obstacles;
-        private const int DEFAULT_OBSTACLE_COUNT = 10;
+        private const int DEFAULT_OBSTACLE_COUNT = 15;
 
         public enum GameState
         {
