@@ -12,16 +12,21 @@ namespace SoutezHad
         private GraphicsDeviceManager graphics;
         private SpriteBatch spriteBatch;
 
+        private float colorTime = 0f;
+
+        private List<Confetti> confetti;
+        private Texture2D pixel; 
+
         private Snake snake;
         private List<Fruit> fruits;
         private PowerUp powerUp;
         private Random random;
 
-        private Texture2D pixel;
-
         private const int GRID_SIZE = 25;
         private const int GRID_WIDTH = 32;
         private const int GRID_HEIGHT = 24;
+
+        private GameState gameState = GameState.StartScreen;
 
         private float moveTimer;
         private const float MOVE_DELAY = 0.12f;
@@ -47,6 +52,12 @@ namespace SoutezHad
         // Překážky
         private List<Obstacle> obstacles;
         private const int DEFAULT_OBSTACLE_COUNT = 10;
+
+        public enum GameState
+        {
+            StartScreen,
+            Playing
+        }
 
         public Game1()
         {
@@ -93,6 +104,24 @@ namespace SoutezHad
 
             pixel = new Texture2D(GraphicsDevice, 1, 1);
             pixel.SetData(new[] { Color.White });
+
+            pixel = new Texture2D(GraphicsDevice, 1, 1);
+            pixel.SetData(new[] { Color.White });
+
+            confetti = new List<Confetti>();
+            for (int i = 0; i < 80; i++) // počet konfet
+            {
+                confetti.Add(new Confetti(graphics.PreferredBackBufferWidth));
+            }
+        }
+
+        private Color GetRainbowColor(float time)
+        {
+            float r = (float)(Math.Sin(time * 2) * 0.5 + 0.5);
+            float g = (float)(Math.Sin(time * 2 + 2) * 0.5 + 0.5);
+            float b = (float)(Math.Sin(time * 2 + 4) * 0.5 + 0.5);
+
+            return new Color(r, g, b);
         }
 
         private void SpawnFruit(FruitType type)
@@ -264,6 +293,32 @@ namespace SoutezHad
         {
             KeyboardState keyState = Keyboard.GetState();
 
+            if (gameState == GameState.StartScreen)
+            {
+                colorTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+                // --- UPDATE KONFET ---
+                foreach (var c in confetti)
+                    c.Update(gameTime, graphics.PreferredBackBufferHeight, graphics.PreferredBackBufferWidth);
+
+                if (keyState.IsKeyDown(Keys.Space))
+                    gameState = GameState.Playing;
+
+                previousKeyState = keyState;
+                return;
+            }
+
+            if (gameState == GameState.StartScreen)
+            {
+                if (keyState.IsKeyDown(Keys.Space))
+                {
+                    gameState = GameState.Playing;
+                }
+
+                previousKeyState = keyState;
+                return; // NEPOKRAČUJ DO HRY
+            }
+
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
                 keyState.IsKeyDown(Keys.Escape))
                 Exit();
@@ -417,8 +472,26 @@ namespace SoutezHad
 
             spriteBatch.Begin();
 
+            if (gameState == GameState.StartScreen)
+            {
+                int centerX = GRID_WIDTH * GRID_SIZE / 2;
+                int centerY = GRID_HEIGHT * GRID_SIZE / 2;
+
+                foreach (var c in confetti)
+                    c.Draw(spriteBatch, pixel);
+
+                Color rainbow = GetRainbowColor(colorTime);
+                DrawTextCentered("SOUTEZNI HAD VIT", centerX, centerY - 40, rainbow, 4);
+                DrawTextCentered("STISNI SPACE PRO START", centerX, centerY + 20, Color.Yellow, 2);
+
+                spriteBatch.End();
+                base.Draw(gameTime);
+                return;
+            }
+
             // Mřížka na pozadí
             DrawGrid();
+
 
             // Kreslení překážek (před ovocem a hadem)
             foreach (var ob in obstacles)
